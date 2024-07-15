@@ -27,5 +27,3 @@ def lambda_handler(event, context):
         Key=f"raw_data/unprocessed/{file_name}",
         Body=json.dumps(spotify_data)
     )
-
-lambda_handler("", "")
