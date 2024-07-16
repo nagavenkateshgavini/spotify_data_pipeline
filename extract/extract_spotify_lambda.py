@@ -6,7 +6,6 @@ from datetime import datetime
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
 
-
 client_id = os.environ.get("client_id")
 secret_key = os.environ.get("secret_key")
 auth_manager = SpotifyClientCredentials(client_id=client_id, client_secret=secret_key)
@@ -27,3 +26,13 @@ def lambda_handler(event, context):
         Key=f"raw_data/unprocessed/{file_name}",
         Body=json.dumps(spotify_data)
     )
+
+    glue = boto3.client('glue')
+    glue_job_name = "spotify_tranformation_job"
+
+    try:
+        run_id = glue.start_job_run(JobName=glue_job_name)
+        status = glue.get_job_run(JobName=glue_job_name, RunId=run_id['JobRunId'])
+        print("Job Status: ", status.get('JobRun', {}).get('JobRunState'))
+    except Exception as e:
+        print(e)

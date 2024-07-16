@@ -1,5 +1,8 @@
 # AWS Glue Studio Notebook
+##### You are now running a AWS Glue Studio notebook; To start using your notebook you need to start an AWS Glue Interactive Session.
 
+
+import boto3
 from datetime import datetime
 from awsglue.transforms import *
 from pyspark.context import SparkContext
@@ -24,14 +27,14 @@ df = source_df
 
 
 def process_albums(df):
-    df = df.withColumn("items", explode("items")).select(
+    a_df = df.withColumn("items", explode("items")).select(
         col("items.track.album.id").alias("album_id"),
         col("items.track.album.name").alias("album_name"),
         col("items.track.album.release_date").alias("release_date"),
         col("items.track.album.total_tracks").alias("total_tracks"),
         col("items.track.album.external_urls.spotify").alias("url")
     ).drop_duplicates(["album_id"])
-    return df
+    return a_df
 
 
 def process_artists(df):
@@ -95,4 +98,33 @@ def write_to_s3(df, path_suffix, format_type="csv"):
 write_to_s3(album_df, f"album/album_transformed_{datetime.now().strftime('%Y-%m-%d')}", "csv")
 write_to_s3(artist_df, f"artist/artist_transformed_{datetime.now().strftime('%Y-%m-%d')}", "csv")
 write_to_s3(song_df, f"songs/songs_transformed_{datetime.now().strftime('%Y-%m-%d')}", "csv")
+
+
+def list_s3_objects(bucket, prefix):
+    s3_client = boto3.client('s3')
+    response = s3_client.list_objects_v2(Bucket=bucket, Prefix=prefix)
+    keys = [content['Key'] for content in response.get('Contents', []) if content['Key'].endswith('.json')]
+
+    return keys
+
+
+bucket_name = "spotify-etl-pipeline-neu"
+prefix = "raw_data/unprocessed/"
+spotify_keys = list_s3_objects(bucket_name, prefix)
+
+
+def move_and_delete_files(spotify_keys, bucket_name):
+    s3_resource = boto3.resource('s3')
+    for key in spotify_keys:
+        copy_source = {
+            'Bucket': bucket_name,
+            'Key': key
+        }
+
+        dest_key = 'raw_data/processed/' + key.split('/')[-1]
+        s3_resource.meta.client.copy(copy_source, bucket_name, dest_key)
+        s3_resource.Object(bucket_name, key).delete()
+
+
+move_and_delete_files(spotify_keys, bucket_name)
 job.commit()
